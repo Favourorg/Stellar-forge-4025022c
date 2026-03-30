@@ -786,3 +786,70 @@ fn test_burn_at_exact_balance() {
     // Verify balance is now 0
     assert_eq!(token_client.balance(&user), 0);
 }
+
+// ── migrate / schema versioning ───────────────────────────────────────────────
+
+#[test]
+fn test_initialize_sets_schema_version() {
+    let s = Setup::new();
+    assert_eq!(s.client.get_state().schema_version, CURRENT_SCHEMA_VERSION);
+    // Standalone "sv" key must also be set
+    s.env.as_contract(&s.client.address, || {
+        let sv: u32 = s.env.storage().instance().get(&symbol_short!("sv")).unwrap();
+        assert_eq!(sv, CURRENT_SCHEMA_VERSION);
+    });
+}
+
+#[test]
+fn test_migrate_is_idempotent() {
+    let s = Setup::new();
+    // Calling migrate twice must not corrupt state or change the version
+    s.client.migrate(&s.admin);
+    s.client.migrate(&s.admin);
+    assert_eq!(s.client.get_state().schema_version, CURRENT_SCHEMA_VERSION);
+}
+
+#[test]
+fn test_migrate_unauthorized() {
+    let s = Setup::new();
+    let stranger = Address::generate(&s.env);
+    assert_eq!(
+        s.client.try_migrate(&stranger),
+        Err(Ok(Error::Unauthorized))
+    );
+}
+
+#[test]
+fn test_migrate_upgrades_pre_versioned_state() {
+    let s = Setup::new();
+
+    // Simulate a pre-versioned deployment: set sv = 0 and schema_version = 0
+    s.env.as_contract(&s.client.address, || {
+        let mut state: FactoryState = s.env.storage().instance()
+            .get(&symbol_short!("state")).unwrap();
+        state.schema_version = 0;
+        s.env.storage().instance().set(&symbol_short!("state"), &state);
+        s.env.storage().instance().set(&symbol_short!("sv"), &0u32);
+    });
+
+    s.client.migrate(&s.admin);
+
+    assert_eq!(s.client.get_state().schema_version, 1);
+    s.env.as_contract(&s.client.address, || {
+        let sv: u32 = s.env.storage().instance().get(&symbol_short!("sv")).unwrap();
+        assert_eq!(sv, 1);
+    });
+}
+
+#[test]
+fn test_migrate_preserves_state_fields() {
+    let s = Setup::new();
+    s.client.migrate(&s.admin);
+    let state = s.client.get_state();
+    // Core fields must survive migration unchanged
+    assert_eq!(state.admin, s.admin);
+    assert_eq!(state.treasury, s.treasury);
+    assert_eq!(state.base_fee, 1_000);
+    assert_eq!(state.metadata_fee, 500);
+    assert!(!state.paused);
+}

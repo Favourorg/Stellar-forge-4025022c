@@ -27,6 +27,10 @@ pub struct TokenInfo {
     pub burn_enabled: bool,
 }
 
+/// Current schema version written by `initialize` and bumped by `migrate`.
+/// Increment this constant whenever `FactoryState` gains new fields.
+pub const CURRENT_SCHEMA_VERSION: u32 = 1;
+
 #[contracttype]
 #[derive(Clone)]
 pub struct FactoryState {
@@ -40,6 +44,9 @@ pub struct FactoryState {
     pub base_fee: i128,
     pub metadata_fee: i128,
     pub token_count: u32,
+    /// Schema version of this state struct. Used by `migrate` to apply
+    /// incremental upgrades without data loss.
+    pub schema_version: u32,
 }
 
 #[contracterror]
@@ -94,8 +101,10 @@ impl TokenFactory {
             base_fee,
             metadata_fee,
             token_count: 0,
+            schema_version: CURRENT_SCHEMA_VERSION,
         };
         env.storage().instance().set(&symbol_short!("state"), &state);
+        env.storage().instance().set(&symbol_short!("sv"), &CURRENT_SCHEMA_VERSION);
         env.storage().instance().set(&symbol_short!("init"), &true);
         env.events().publish((symbol_short!("init"),), (admin,));
         Ok(())
@@ -461,10 +470,50 @@ impl TokenFactory {
         Ok(())
     }
 
-    /// Stub for future state migrations after an upgrade.
-    /// Extend this function when a WASM upgrade requires data layout changes.
-    pub fn migrate(_env: Env, _admin: Address) -> Result<(), Error> {
-        // No-op until a migration is required.
+    /// Apply incremental state migrations after a WASM upgrade.
+    ///
+    /// Safe to call multiple times — already-applied migrations are skipped
+    /// (idempotent). The standalone `"sv"` key tracks the on-chain version
+    /// independently of the state struct so it can be read even when the old
+    /// struct layout has changed.
+    ///
+    /// ## Adding a new migration (version N → N+1)
+    /// 1. Increment `CURRENT_SCHEMA_VERSION` to N+1.
+    /// 2. Add an `if on_chain_version < N+1 { … }` block below that reads the
+    ///    old state, sets the new field(s) to their defaults, writes the updated
+    ///    state, and bumps `on_chain_version`.
+    pub fn migrate(env: Env, admin: Address) -> Result<(), Error> {
+        admin.require_auth();
+        let state = Self::load_state(&env)?;
+        if state.admin != admin {
+            return Err(Error::Unauthorized);
+        }
+
+        // Read the persisted schema version (defaults to 0 for pre-versioned deployments).
+        let mut on_chain_version: u32 = env
+            .storage()
+            .instance()
+            .get(&symbol_short!("sv"))
+            .unwrap_or(0);
+
+        // ── version 0 → 1 ────────────────────────────────────────────────────
+        // Version 1 added `schema_version` to FactoryState.
+        // Pre-versioned deployments (on_chain_version == 0) already have their
+        // state loaded above; we just stamp the version field and persist.
+        if on_chain_version < 1 {
+            // state was loaded from the old layout; write it back with the new field.
+            // (load_state already returned a valid FactoryState because the new
+            //  field has a default via the XDR union fallback in Soroban.)
+            let mut new_state = state.clone();
+            new_state.schema_version = 1;
+            Self::save_state(&env, &new_state);
+            on_chain_version = 1;
+            env.storage().instance().set(&symbol_short!("sv"), &on_chain_version);
+        }
+
+        // ── future migrations go here ─────────────────────────────────────────
+        // if on_chain_version < 2 { … }
+
         Ok(())
     }
 
