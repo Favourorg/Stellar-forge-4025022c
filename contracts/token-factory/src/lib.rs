@@ -228,19 +228,26 @@ impl TokenFactory {
         state: &mut FactoryState,
     ) -> Result<Address, Error> {
         if name.len() == 0 || name.len() > 32 {
+            state.locked = false;
             return Err(Error::InvalidTokenParams);
         }
         if symbol.len() == 0 || symbol.len() > 12 {
+            state.locked = false;
             return Err(Error::InvalidTokenParams);
         }
         if decimals > 18 {
-            return Err(Error::InvalidDecimals);
+            state.locked = false;
+            return Err(Error::InvalidParameters);
         }
         if fee_payment < state.base_fee {
+            state.locked = false;
             return Err(Error::InsufficientFee);
         }
         // Fail fast if token count would overflow
-        state.token_count.checked_add(1).ok_or(Error::ArithmeticOverflow)?;
+        if state.token_count.checked_add(1).is_none() {
+            state.locked = false;
+            return Err(Error::ArithmeticOverflow);
+        }
 
         // Transfer fee from creator to treasury using the dedicated fee_token
         Self::distribute_fee(env, state, &creator, fee_payment)?;
@@ -556,7 +563,7 @@ impl TokenFactory {
                 .get(&DataKey::TokenInfo(index))
                 .ok_or(Error::TokenNotFound)?;
             if !info.burn_enabled {
-                return Err(Error::BurnNotEnabled);
+                return Err(Error::Unauthorized);
             }
         }
 
