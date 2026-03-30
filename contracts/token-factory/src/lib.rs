@@ -109,6 +109,34 @@ impl TokenFactory {
         env.storage().instance().set(&symbol_short!("state"), state);
     }
 
+    fn whitelist_key(address: &Address) -> (soroban_sdk::Symbol, Address) {
+        (symbol_short!("wl"), address.clone())
+    }
+
+    pub fn add_to_whitelist(env: Env, admin: Address, address: Address) -> Result<(), Error> {
+        admin.require_auth();
+        let state = Self::load_state(&env)?;
+        if state.admin != admin {
+            return Err(Error::Unauthorized);
+        }
+        env.storage().instance().set(&Self::whitelist_key(&address), &true);
+        Ok(())
+    }
+
+    pub fn remove_from_whitelist(env: Env, admin: Address, address: Address) -> Result<(), Error> {
+        admin.require_auth();
+        let state = Self::load_state(&env)?;
+        if state.admin != admin {
+            return Err(Error::Unauthorized);
+        }
+        env.storage().instance().remove(&Self::whitelist_key(&address));
+        Ok(())
+    }
+
+    pub fn is_whitelisted(env: Env, address: Address) -> bool {
+        env.storage().instance().get(&Self::whitelist_key(&address)).unwrap_or(false)
+    }
+
     fn require_not_paused(env: &Env) -> Result<(), Error> {
         if Self::load_state(env)?.paused {
             return Err(Error::ContractPaused);
@@ -176,12 +204,14 @@ impl TokenFactory {
             return Err(Error::InsufficientFee);
         }
 
-        // Transfer fee to treasury using the stored fee token
-        token::TokenClient::new(env, &state.fee_token).transfer(
-            &creator,
-            &state.treasury,
-            &fee_payment,
-        );
+        // Transfer fee to treasury unless creator is whitelisted
+        if !Self::is_whitelisted(env.clone(), creator.clone()) {
+            token::TokenClient::new(env, &state.fee_token).transfer(
+                &creator,
+                &state.treasury,
+                &fee_payment,
+            );
+        }
 
         // Deploy token contract deterministically from creator + salt
         let token_address = env
@@ -274,11 +304,14 @@ impl TokenFactory {
             return Err(Error::MetadataAlreadySet);
         }
 
-        token::TokenClient::new(&env, &state.fee_token).transfer(
-            &admin,
-            &state.treasury,
-            &fee_payment,
-        );
+        // Transfer fee to treasury unless admin is whitelisted
+        if !Self::is_whitelisted(env.clone(), admin.clone()) {
+            token::TokenClient::new(&env, &state.fee_token).transfer(
+                &admin,
+                &state.treasury,
+                &fee_payment,
+            );
+        }
 
         env.storage()
             .instance()

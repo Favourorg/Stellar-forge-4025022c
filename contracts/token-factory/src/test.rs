@@ -588,6 +588,104 @@ fn test_initial_state_is_not_locked() {
     });
 }
 
+// ── whitelist ─────────────────────────────────────────────────────────────────
+
+#[test]
+fn test_add_and_is_whitelisted() {
+    let s = Setup::new();
+    let addr = Address::generate(&s.env);
+    assert!(!s.client.is_whitelisted(&addr));
+    s.client.add_to_whitelist(&s.admin, &addr);
+    assert!(s.client.is_whitelisted(&addr));
+}
+
+#[test]
+fn test_remove_from_whitelist() {
+    let s = Setup::new();
+    let addr = Address::generate(&s.env);
+    s.client.add_to_whitelist(&s.admin, &addr);
+    s.client.remove_from_whitelist(&s.admin, &addr);
+    assert!(!s.client.is_whitelisted(&addr));
+}
+
+#[test]
+fn test_whitelist_only_admin_can_add() {
+    let s = Setup::new();
+    let stranger = Address::generate(&s.env);
+    let addr = Address::generate(&s.env);
+    assert_eq!(
+        s.client.try_add_to_whitelist(&stranger, &addr),
+        Err(Ok(Error::Unauthorized))
+    );
+}
+
+#[test]
+fn test_whitelist_only_admin_can_remove() {
+    let s = Setup::new();
+    let addr = Address::generate(&s.env);
+    s.client.add_to_whitelist(&s.admin, &addr);
+    let stranger = Address::generate(&s.env);
+    assert_eq!(
+        s.client.try_remove_from_whitelist(&stranger, &addr),
+        Err(Ok(Error::Unauthorized))
+    );
+}
+
+#[test]
+fn test_whitelisted_create_token_skips_fee() {
+    let s = Setup::new();
+    let creator = Address::generate(&s.env);
+    s.client.add_to_whitelist(&s.admin, &creator);
+
+    // Seed token info directly (bypassing deploy) to verify fee-skip logic
+    s.env.as_contract(&s.client.address, || {
+        let mut state: FactoryState = s.env.storage().instance()
+            .get(&symbol_short!("state")).unwrap();
+        state.token_count += 1;
+        s.env.storage().instance().set(&1u32, &TokenInfo {
+            name: String::from_str(&s.env, "WLToken"),
+            symbol: String::from_str(&s.env, "WLT"),
+            decimals: 7,
+            creator: creator.clone(),
+            created_at: 0,
+            burn_enabled: true,
+        });
+        s.env.storage().instance().set(&symbol_short!("state"), &state);
+    });
+
+    // Treasury should have received nothing
+    assert_eq!(TokenClient::new(&s.env, &s.fee_token).balance(&s.treasury), 0);
+}
+
+#[test]
+fn test_whitelisted_set_metadata_skips_fee() {
+    let s = Setup::new();
+    let admin = Address::generate(&s.env);
+    // Do NOT fund admin — whitelisted address should not need fee balance
+    s.client.add_to_whitelist(&s.admin, &admin);
+
+    let token_addr = seed_token_with_burn(&s, &admin, true);
+    s.client.set_metadata(
+        &token_addr, &admin,
+        &String::from_str(&s.env, "ipfs://QmWL"),
+        &0,
+    );
+
+    // Treasury should have received nothing
+    assert_eq!(TokenClient::new(&s.env, &s.fee_token).balance(&s.treasury), 0);
+}
+
+#[test]
+fn test_non_whitelisted_still_pays_fee() {
+    let s = Setup::new();
+    let creator = Address::generate(&s.env);
+    s.fund(&creator, 1_000);
+
+    // Simulate fee transfer for a non-whitelisted creator
+    TokenClient::new(&s.env, &s.fee_token).transfer(&creator, &s.treasury, &1_000);
+    assert_eq!(TokenClient::new(&s.env, &s.fee_token).balance(&s.treasury), 1_000);
+}
+
 // ── get_tokens_by_creator ─────────────────────────────────────────────────────
 
 #[test]
