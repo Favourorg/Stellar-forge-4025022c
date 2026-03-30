@@ -1,10 +1,13 @@
 import { useWalletContext } from '../context/WalletContext'
-import { truncateAddress, formatXLM } from '../utils/formatting'
+import { useNetwork } from '../context/NetworkContext'
+import { formatXLM } from '../utils/formatting'
+import { ExplorerLink } from './ExplorerLink'
 import { Button } from './UI/Button'
 import { Spinner } from './UI/Spinner'
 
 export const WalletConnectButton: React.FC = () => {
   const { wallet, isConnecting, isInstalled, connect, disconnect } = useWalletContext()
+  const { network } = useNetwork()
 
   // Wallet not installed state
   if (!isInstalled) {
@@ -36,12 +39,14 @@ export const WalletConnectButton: React.FC = () => {
     return (
       <div className="inline-flex items-center gap-3">
         <div className="flex flex-col items-end">
-          <span
-            className="font-mono text-sm text-gray-700 dark:text-gray-300"
-            title={wallet.address}
-          >
-            {truncateAddress(wallet.address)}
-          </span>
+          <ExplorerLink
+              type="account"
+              id={wallet.address}
+              network={network}
+              truncate={true}
+              showIcon={true}
+              className="font-mono text-sm text-gray-700 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400"
+            />
           {wallet.balance !== undefined ? (
             <span className="text-xs text-gray-500 dark:text-gray-400">
               {formatXLM(wallet.balance)}

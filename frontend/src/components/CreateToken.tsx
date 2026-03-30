@@ -5,7 +5,9 @@ import { useStellarContext } from '../context/StellarContext'
 import { useWalletContext } from '../context/WalletContext'
 import { TokenForm } from './TokenForm'
 import { ShareButton } from './ShareButton'
+import { ExplorerLink } from './ExplorerLink'
 import { STELLAR_CONFIG } from '../config/stellar'
+import { useNetwork } from '../context/NetworkContext'
 
 interface DeployedToken {
   address: string
@@ -18,6 +20,7 @@ export const CreateToken: React.FC = () => {
   const { addToast } = useToast()
   const { stellarService } = useStellarContext()
   const { refreshBalance } = useWalletContext()
+  const { network } = useNetwork()
 
   const [isDeploying, setIsDeploying] = useState(false)
   const [deployedToken, setDeployedToken] = useState<DeployedToken | null>(null)
@@ -82,9 +85,15 @@ export const CreateToken: React.FC = () => {
               <p className="font-semibold text-green-800 dark:text-green-300">
                 {deployedToken.name} (${deployedToken.symbol}) {t('tokenForm.deployedSuccessfully')}
               </p>
-              <p className="text-sm text-green-700 dark:text-green-400 mt-1 font-mono break-all">
-                {deployedToken.address}
-              </p>
+              <ExplorerLink
+                type="contract"
+                id={deployedToken.address}
+                network={network}
+                label={deployedToken.address}
+                truncate={false}
+                showIcon={true}
+                className="text-sm text-green-700 dark:text-green-400 mt-1 font-mono break-all hover:underline"
+              />
               <div className="mt-3">
                 <ShareButton
                   tokenAddress={deployedToken.address}

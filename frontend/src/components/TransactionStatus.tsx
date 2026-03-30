@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { stellarService } from '../services/stellar'
+import { useNetwork } from '../context/NetworkContext'
+import { ExplorerLink } from './ExplorerLink'
 import { Spinner } from './UI/Spinner'
 
 export interface TransactionStatusProps {
@@ -17,6 +19,7 @@ export const TransactionStatus: React.FC<TransactionStatusProps> = ({
 }) => {
   const [status, setStatus] = useState<TxState>('pending')
   const [errorMessage, setErrorMessage] = useState<string>('')
+  const { network } = useNetwork()
 
   useEffect(() => {
     const POLL_INTERVAL_MS = 3000
@@ -96,15 +99,14 @@ export const TransactionStatus: React.FC<TransactionStatusProps> = ({
             </svg>
           </div>
           <span className="font-bold text-lg text-gray-800">Transaction Successful</span>
-          <a
-            href={`https://stellar.expert/explorer/testnet/tx/${txHash}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sm font-mono text-blue-500 hover:text-blue-700 underline truncate max-w-full px-4"
-            title={txHash}
-          >
-            {txHash.slice(0, 8)}...{txHash.slice(-8)}
-          </a>
+          <ExplorerLink
+              type="transaction"
+              id={txHash}
+              network={network}
+              truncate={true}
+              showIcon={true}
+              className="text-sm font-mono text-blue-500 hover:text-blue-700 underline truncate max-w-full px-4"
+            />
         </div>
       )}
 

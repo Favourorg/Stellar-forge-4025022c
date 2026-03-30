@@ -4,19 +4,12 @@ import { Link } from 'react-router-dom'
 import { CopyButton } from './CopyButton'
 import { Input, PaginationControls } from './UI'
 import { TransactionHistory } from './TransactionHistory'
+import { ExplorerLink } from './ExplorerLink'
+import { useNetwork } from '../context/NetworkContext'
 import { useDebounce } from '../hooks/useDebounce'
 import { useTokenDashboard } from '../hooks/useTokenDashboard'
 import { STELLAR_CONFIG } from '../config/stellar'
 import { formatAddress } from '../utils/formatting'
-
-function explorerUrl(address: string): string {
-  const network = STELLAR_CONFIG.network as 'testnet' | 'mainnet'
-  const base =
-    network === 'mainnet'
-      ? 'https://stellar.expert/explorer/public/contract'
-      : 'https://stellar.expert/explorer/testnet/contract'
-  return `${base}/${address}`
-}
 
 function SkeletonRow() {
   return (
@@ -34,6 +27,7 @@ export const TokenDashboard: React.FC = () => {
   const { rows, isLoading, error, page, totalPages, totalCount, pageSize, setPage, refresh } =
     useTokenDashboard()
   const { t } = useTranslation()
+  const { network } = useNetwork()
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebounce(search, 300)
 
@@ -105,15 +99,14 @@ export const TokenDashboard: React.FC = () => {
                 </Link>
                 <div className="flex items-center gap-1 flex-shrink-0">
                   <CopyButton value={token.address} ariaLabel="Copy token address" />
-                  <a
-                    href={explorerUrl(token.address)}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <ExplorerLink
+                    type="contract"
+                    id={token.address}
+                    network={network}
+                    label="↗"
+                    showIcon={false}
                     className="text-xs text-blue-500 hover:underline"
-                    aria-label={`View ${token.name} on Stellar Explorer`}
-                  >
-                    ↗
-                  </a>
+                  />
                 </div>
               </li>
             ))
