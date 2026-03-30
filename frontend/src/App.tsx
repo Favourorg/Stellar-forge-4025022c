@@ -1,49 +1,10 @@
-import { ToastContainer,Button,Spinner } from './components/UI';
-import './App.css'
-import { useDarkMode } from './hooks/useDarkMode'
-
-function App() {
-  const [dark, setDark] = useDarkMode()
-
-  return (
-    <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
-      <header className="bg-white dark:bg-gray-800 shadow">
-        <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8 flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">StellarForge</h1>
-            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">Stellar Token Deployer</p>
-          </div>
-          <button
-            onClick={() => setDark(!dark)}
-            aria-label="Toggle dark mode"
-            className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {dark ? (
-              <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clipRule="evenodd" />
-              </svg>
-            ) : (
-              <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
-              </svg>
-            )}
-          </button>
-        </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <div className="px-4 py-6 sm:px-0">
-          <div className="border-4 border-dashed border-gray-200 dark:border-gray-700 rounded-lg p-8">
-            <div className="text-center">
-              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">Welcome to Nova Launch</h2>
-              <p className="text-gray-600 dark:text-gray-400 mb-8">Deploy your custom tokens on Stellar blockchain</p>
-              <button className="bg-blue-500 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500 text-white font-bold py-2 px-4 rounded">
-                Get Started
-              </button>
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { WalletProvider } from './context/WalletContext'
 import { ToastProvider, useToast } from './context/ToastContext'
 import { NetworkProvider } from './context/NetworkContext'
+import { StellarProvider } from './context/StellarContext'
 import { NetworkSwitcher } from './components/NetworkSwitcher'
+import { NetworkBadge, NetworkMismatchBanner } from './components/NetworkBadge'
 import { useWallet } from './hooks/useWallet'
 import { truncateAddress, formatXLM } from './utils/formatting'
 import { NavBar } from './components/NavBar'
@@ -53,22 +14,18 @@ import { MintForm } from './components/MintForm'
 import { BurnForm } from './components/BurnForm'
 import { Dashboard } from './components/Dashboard'
 import { TokenDetail } from './components/TokenDetail'
+import { Button, Spinner, ToastContainer } from './components/UI'
+import './App.css'
 
 const ProtectedRoute: React.FC<{ children: JSX.Element }> = ({ children }) => {
   const { wallet } = useWallet()
-
-  if (!wallet.isConnected) {
-    return <Navigate to="/" replace />
-  }
-
+  if (!wallet.isConnected) return <Navigate to="/" replace />
   return children
 }
 
 function AppContent() {
   const { wallet, connect, disconnect, isConnecting, error, isInstalled } = useWallet()
   const { addToast } = useToast()
-
-  const handleGetStarted = () => addToast("Welcome! Let's deploy your token.", 'info')
 
   const handleConnect = async () => {
     try {
@@ -103,6 +60,8 @@ function AppContent() {
               </div>
 
               <div className="flex items-center gap-4">
+                {/* NetworkBadge shows current network; NetworkSwitcher lets user change it */}
+                <NetworkBadge />
                 <NetworkSwitcher />
 
                 {!isInstalled && (
@@ -149,6 +108,9 @@ function AppContent() {
           </div>
         </header>
 
+        {/* Full-width mismatch warning — shown below header when Freighter network differs */}
+        <NetworkMismatchBanner />
+
         <main id="main-content" className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
           <div className="px-4 py-6 sm:px-0">
             {error && (
@@ -163,7 +125,7 @@ function AppContent() {
 
             <div className="bg-white p-6 rounded-lg shadow-sm">
               <Routes>
-                <Route path="/" element={<Home onGetStarted={handleGetStarted} />} />
+                <Route path="/" element={<Home onGetStarted={() => addToast("Welcome! Let's deploy your token.", 'info')} />} />
                 <Route path="/create" element={<ProtectedRoute><CreateToken /></ProtectedRoute>} />
                 <Route path="/mint" element={<ProtectedRoute><MintForm /></ProtectedRoute>} />
                 <Route path="/burn" element={<ProtectedRoute><BurnForm /></ProtectedRoute>} />
@@ -183,15 +145,17 @@ function AppContent() {
 
 function App() {
   return (
-    <NetworkProvider>
-      <StellarProvider>
-        <WalletProvider>
-          <ToastProvider>
-            <AppContent />
-          </ToastProvider>
-        </WalletProvider>
-      </StellarProvider>
-    </NetworkProvider>
+    <Router>
+      <NetworkProvider>
+        <StellarProvider>
+          <WalletProvider>
+            <ToastProvider>
+              <AppContent />
+            </ToastProvider>
+          </WalletProvider>
+        </StellarProvider>
+      </NetworkProvider>
+    </Router>
   )
 }
 

@@ -1,16 +1,9 @@
-import { Input } from './UI';
 import { useState, useEffect } from 'react'
 import { Input } from './UI/Input'
 import { Button } from './UI/Button'
 import { useDebounce } from '../hooks/useDebounce'
-import { useStellarContext } from '../context/StellarContext'
-// import { useWallet } from '../hooks/useWallet'
-// import { walletService } from '../services/wallet'
-
-export const MintForm: React.FC = () => {
-  const { stellarService } = useStellarContext()
-  const [tokenAddress, setTokenAddress] = useState('')
 import { stellarService } from '../services/stellar'
+import { useNetworkGuard } from '../hooks/useNetworkGuard'
 import type { TokenInfo } from '../types'
 
 interface MintFormProps {
@@ -22,6 +15,7 @@ export const MintForm: React.FC<MintFormProps> = ({ tokenAddress: initialAddress
   const [tokenAddress, setTokenAddress] = useState(initialAddress)
   const [amount, setAmount] = useState('')
   const [tokenInfo, setTokenInfo] = useState<TokenInfo | null>(null)
+  const { blocked, reason } = useNetworkGuard()
 
   const debouncedAddress = useDebounce(tokenAddress, 300)
 
@@ -32,12 +26,17 @@ export const MintForm: React.FC<MintFormProps> = ({ tokenAddress: initialAddress
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // mint logic placeholder
+    if (blocked) return
     onSuccess?.()
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {blocked && reason && (
+        <div role="alert" className="rounded-md bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-800">
+          {reason}
+        </div>
+      )}
       <Input
         label="Token Address"
         value={tokenAddress}
@@ -46,7 +45,7 @@ export const MintForm: React.FC<MintFormProps> = ({ tokenAddress: initialAddress
         required
       />
       {tokenInfo && (
-        <p className="text-sm text-gray-600 dark:text-gray-400">
+        <p className="text-sm text-gray-600">
           Token: {tokenInfo.name} ({tokenInfo.symbol})
         </p>
       )}
@@ -59,7 +58,7 @@ export const MintForm: React.FC<MintFormProps> = ({ tokenAddress: initialAddress
         min="0"
         required
       />
-      <Button type="submit" variant="primary">Mint</Button>
+      <Button type="submit" variant="primary" disabled={blocked}>Mint</Button>
     </form>
   )
 }

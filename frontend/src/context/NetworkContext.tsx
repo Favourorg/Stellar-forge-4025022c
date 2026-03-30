@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback, ReactNode } from 'react'
 import { STELLAR_CONFIG } from '../config/stellar'
+import { useNetworkMismatch, type NetworkMismatchState } from '../hooks/useNetworkMismatch'
 
 export type Network = 'testnet' | 'mainnet'
 
@@ -19,18 +20,17 @@ interface NetworkContextValue {
   rpcUrl: string
   horizonUrl: string
   networkPassphrase: string
+  mismatch: NetworkMismatchState
 }
 
 const NetworkContext = createContext<NetworkContextValue | null>(null)
 
-export function NetworkProvider({ children }: { children: ReactNode }) {
-  const [network, setNetwork] = useState<Network>(getInitialNetwork)
-
-  const switchNetwork = useCallback((n: Network) => {
-    setNetwork(n)
-    try { localStorage.setItem(STORAGE_KEY, n) } catch { /* ignore */ }
-  }, [])
-
+function NetworkProviderInner({ children, network, switchNetwork }: {
+  children: ReactNode
+  network: Network
+  switchNetwork: (n: Network) => void
+}) {
+  const mismatch = useNetworkMismatch()
   const cfg = STELLAR_CONFIG[network]
 
   return (
@@ -40,9 +40,25 @@ export function NetworkProvider({ children }: { children: ReactNode }) {
       rpcUrl: cfg.sorobanRpcUrl,
       horizonUrl: cfg.horizonUrl,
       networkPassphrase: cfg.networkPassphrase,
+      mismatch,
     }}>
       {children}
     </NetworkContext.Provider>
+  )
+}
+
+export function NetworkProvider({ children }: { children: ReactNode }) {
+  const [network, setNetwork] = useState<Network>(getInitialNetwork)
+
+  const switchNetwork = useCallback((n: Network) => {
+    setNetwork(n)
+    try { localStorage.setItem(STORAGE_KEY, n) } catch { /* ignore */ }
+  }, [])
+
+  return (
+    <NetworkProviderInner network={network} switchNetwork={switchNetwork}>
+      {children}
+    </NetworkProviderInner>
   )
 }
 

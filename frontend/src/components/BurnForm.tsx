@@ -1,13 +1,11 @@
-import { Input } from './UI';
 import { useState, useEffect } from 'react'
 import { Input } from './UI/Input'
 import { Button } from './UI/Button'
 import { useDebounce } from '../hooks/useDebounce'
-import { useStellarContext } from '../context/StellarContext'
+import { stellarService } from '../services/stellar'
+import { useNetworkGuard } from '../hooks/useNetworkGuard'
+import type { TokenInfo } from '../types'
 
-export const BurnForm: React.FC = () => {
-  const { stellarService } = useStellarContext()
-  const [tokenAddress, setTokenAddress] = useState('')
 interface BurnFormProps {
   tokenAddress?: string
   onSuccess?: () => void
@@ -17,6 +15,7 @@ export const BurnForm: React.FC<BurnFormProps> = ({ tokenAddress: initialAddress
   const [tokenAddress, setTokenAddress] = useState(initialAddress)
   const [amount, setAmount] = useState('')
   const [tokenInfo, setTokenInfo] = useState<TokenInfo | null>(null)
+  const { blocked, reason } = useNetworkGuard()
 
   const debouncedAddress = useDebounce(tokenAddress, 300)
 
@@ -27,12 +26,17 @@ export const BurnForm: React.FC<BurnFormProps> = ({ tokenAddress: initialAddress
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    // burn logic placeholder
+    if (blocked) return
     onSuccess?.()
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {blocked && reason && (
+        <div role="alert" className="rounded-md bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-800">
+          {reason}
+        </div>
+      )}
       <Input
         label="Token Address"
         value={tokenAddress}
@@ -41,7 +45,7 @@ export const BurnForm: React.FC<BurnFormProps> = ({ tokenAddress: initialAddress
         required
       />
       {tokenInfo && (
-        <p className="text-sm text-gray-600 dark:text-gray-400">
+        <p className="text-sm text-gray-600">
           Token: {tokenInfo.name} ({tokenInfo.symbol})
         </p>
       )}
@@ -54,7 +58,7 @@ export const BurnForm: React.FC<BurnFormProps> = ({ tokenAddress: initialAddress
         min="0"
         required
       />
-      <Button type="submit" variant="secondary">Burn</Button>
+      <Button type="submit" variant="secondary" disabled={blocked}>Burn</Button>
     </form>
   )
 }
