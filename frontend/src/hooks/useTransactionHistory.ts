@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 
 export type TransactionType = 'create' | 'mint' | 'burn' | 'other';
+const POLLING_INTERVAL_MS = 30_000;
 
 export interface TransactionHistoryItem {
   id: string;
@@ -28,19 +29,20 @@ export function useTransactionHistory(
   const [error, setError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(1);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const cacheRef = useRef<{ [key: string]: TransactionHistoryItem[] }>({});
   const debounceRef = useRef<number | null>(null);
 
   const pageSize = options.pageSize || 10;
 
   const fetchTransactions = useCallback(
-    async (reset = false) => {
+    async (reset = false, bypassCache = false, targetPage = page, silent = false) => {
       if (!publicKey) return;
-      setLoading(true);
+      if (!silent) setLoading(true);
       setError(null);
       try {
-        const cacheKey = `${publicKey}-${page}`;
-        if (cacheRef.current[cacheKey]) {
+        const cacheKey = `${publicKey}-${targetPage}`;
+        if (!bypassCache && cacheRef.current[cacheKey]) {
           setTransactions((prev: TransactionHistoryItem[]) =>
             reset ? cacheRef.current[cacheKey] : [...prev, ...cacheRef.current[cacheKey]]
           );
@@ -58,14 +60,22 @@ export function useTransactionHistory(
         cacheRef.current[cacheKey] = items;
         setTransactions((prev: TransactionHistoryItem[]) => (reset ? items : [...prev, ...items]));
         setHasMore(items.length === pageSize);
+        setLastUpdated(new Date());
       } catch (e: any) {
         setError(e.message || 'Unknown error');
       } finally {
-        setLoading(false);
+        if (!silent) setLoading(false);
       }
     },
     [publicKey, page, pageSize, options]
   );
+
+  const refreshTransactions = useCallback(() => {
+    if (!publicKey) return;
+    cacheRef.current = {};
+    setPage(1);
+    void fetchTransactions(true, true, 1, true);
+  }, [fetchTransactions, publicKey]);
 
   // Debounce on publicKey change
   useEffect(() => {
@@ -76,6 +86,17 @@ export function useTransactionHistory(
       setTransactions([]);
       fetchTransactions(true);
     }, 400);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+    // eslint-disable-next-line
+  }, [publicKey]);
+
+  // Refresh the first page periodically so recent Horizon operations appear without reload.
+  useEffect(() => {
+    if (!publicKey) return;
+    const intervalId = window.setInterval(refreshTransactions, POLLING_INTERVAL_MS);
+    return () => window.clearInterval(intervalId);
     // eslint-disable-next-line
   }, [publicKey]);
 
@@ -90,7 +111,7 @@ export function useTransactionHistory(
     if (!loading && hasMore) setPage((p: number) => p + 1);
   }, [loading, hasMore]);
 
-  return { transactions, loading, error, hasMore, loadMore };
+  return { transactions, loading, error, hasMore, loadMore, lastUpdated, refreshTransactions };
 }
 
 function parseOperation(op: any, options: UseTransactionHistoryOptions): TransactionHistoryItem | null {

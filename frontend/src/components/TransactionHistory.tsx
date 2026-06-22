@@ -32,7 +32,7 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
 }) => {
   const { t } = useTranslation()
   const resolvedContractIds = contractId ? [contractId, ...(contractIds ?? [])] : contractIds
-  const { transactions, loading, error, hasMore, loadMore } = useTransactionHistory(publicKey, {
+  const { transactions, loading, error, hasMore, loadMore, lastUpdated } = useTransactionHistory(publicKey, {
     assetCodes,
     issuer,
     contractIds: resolvedContractIds,
@@ -57,7 +57,17 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
 
   return (
     <div className="w-full max-w-3xl mx-auto p-4">
-      <h2 className="text-2xl font-bold mb-4">Transaction History</h2>
+      <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
+        <h2 className="text-2xl font-bold">Transaction History</h2>
+        {lastUpdated && (
+          <p
+            className="text-xs text-gray-500 dark:text-gray-400"
+            title={lastUpdated.toLocaleString()}
+          >
+            Last updated {lastUpdated.toLocaleTimeString()}
+          </p>
+        )}
+      </div>
       {loading && transactions.length === 0 && (
         <div className="animate-pulse space-y-2" aria-label="Loading transactions" aria-busy="true">
           {[...Array(5)].map((_, i) => (
