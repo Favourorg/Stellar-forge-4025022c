@@ -24,7 +24,9 @@ export function stellarExplorerUrl(
   network: Network = 'mainnet',
 ): string {
   if (!VALID_TYPES.has(type)) {
-    throw new Error(`Invalid explorer type: "${String(type)}". Must be account, transaction, or contract.`)
+    throw new Error(
+      `Invalid explorer type: "${String(type)}". Must be account, transaction, or contract.`,
+    )
   }
   if (!id.trim()) {
     throw new Error('Explorer URL requires a non-empty id.')

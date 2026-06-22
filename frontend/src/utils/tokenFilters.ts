@@ -10,10 +10,9 @@ export function applyFilters(
 
   if (search) {
     const q = search.toLowerCase()
-    list = list.filter(
-      t =>
-        t.name.toLowerCase().includes(q) ||
-        t.symbol.toLowerCase().includes(q)
+    list = list.filter(t =>
+      t.name.toLowerCase().includes(q) ||
+      t.symbol.toLowerCase().includes(q)
     )
   }
 

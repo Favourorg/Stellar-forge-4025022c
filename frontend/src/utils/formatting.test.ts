@@ -16,14 +16,6 @@ describe('formatTokenAmount', () => {
   it('converts stroops to decimal (7 decimals)', () => {
     expect(formatTokenAmount('1000000000', 7)).toBe('100.0000000')
   })
-})
-
-describe('formatAddress', () => {
-  const ADDR = 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN'
-
-  it('truncates with default prefix/suffix', () => {
-    expect(formatAddress(ADDR)).toBe('GAAZI4...CCWN')
-  })
 
   it('formats negative amounts', () => {
     expect(formatTokenAmount('-1000000000', 7)).toBe('-100.0000000')
@@ -36,10 +28,6 @@ describe('formatAddress', () => {
 
   it('accepts BigInt input', () => {
     expect(formatTokenAmount(700_000_000n, 7)).toBe('70.0000000')
-  })
-
-  it('respects custom prefixLen and suffixLen', () => {
-    expect(formatAddress(ADDR, 4, 4)).toBe('GAAZ...CCWN')
   })
 
   it('pads fractional part with leading zeros', () => {
@@ -61,7 +49,6 @@ describe('formatXLM', () => {
   it('accepts BigInt input', () => {
     expect(formatXLM(10_000_000n)).toBe('1.0000000 XLM')
   })
-})
 
   it('formats zero', () => {
     expect(formatXLM(0)).toBe('0.0000000 XLM')
@@ -95,7 +82,6 @@ describe('truncateAddress', () => {
   it('truncates with default 4 chars each side', () => {
     expect(truncateAddress(ADDR)).toBe('GAAZ...CCWN')
   })
-})
 
   it('respects custom chars param', () => {
     expect(truncateAddress(ADDR, 6)).toBe('GAAZI4...CCWN')
@@ -130,15 +116,15 @@ describe('parseTokenAmount', () => {
   })
 })
 
-// ── formatAddress (legacy helper) ────────────────────────────────────────────
+// ── formatAddress ─────────────────────────────────────────────────────────────
 
 describe('formatAddress', () => {
   it('truncates with default prefix/suffix', () => {
     expect(formatAddress(ADDR)).toBe('GAAZI4...CCWN')
   })
 
-  it('defaults to testnet', () => {
-    expect(stellarExplorerUrl('tx', 'xyz')).toContain('testnet')
+  it('respects custom prefixLen and suffixLen', () => {
+    expect(formatAddress(ADDR, 4, 4)).toBe('GAAZ...CCWN')
   })
 
   it('returns address unchanged when shorter than prefix + suffix', () => {

@@ -1,7 +1,7 @@
 import React from 'react'
 import { useTransaction } from '../hooks/useTransaction'
 import { useNetwork } from '../context/NetworkContext'
-import { stellarExplorerUrl } from '../utils/formatting'
+import { stellarExplorerUrl } from '../utils/stellarExplorer'
 import { Spinner } from './UI/Spinner'
 import { CopyButton } from './CopyButton'
 
@@ -18,33 +18,6 @@ export const TransactionStatus: React.FC<TransactionStatusProps> = ({
 }) => {
   const { status, error } = useTransaction(txHash)
   const { network } = useNetwork()
-
-      try {
-        const res = (await stellarService.getTransaction(txHash)) as {
-          status?: string
-          error?: string
-        }
-        const resStatus = res?.status?.toLowerCase() || ''
-
-        if (resStatus === 'success' || resStatus === 'confirmed') {
-          setStatus('success')
-          clearInterval(intervalId)
-          if (onSuccess) onSuccess()
-        } else if (resStatus === 'failed' || resStatus === 'error') {
-          setStatus('error')
-          const errorMsg = res?.error || 'Transaction failed'
-          setErrorMessage(errorMsg)
-          clearInterval(intervalId)
-          if (onError) onError(errorMsg)
-        }
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Transaction polling failed'
-        setStatus('error')
-        setErrorMessage(msg)
-        clearInterval(intervalId)
-        if (onError) onError(msg)
-      }
-    }
 
   React.useEffect(() => {
     if (status === 'success') onSuccess?.()
@@ -115,7 +88,7 @@ export const TransactionStatus: React.FC<TransactionStatusProps> = ({
           <span className="font-bold text-lg text-gray-800">Transaction Failed</span>
           {error && <p className="text-sm text-red-500 text-center px-2">{error}</p>}
           <a
-            href={explorerUrl}
+            href={stellarExplorerUrl('transaction', txHash, network)}
             target="_blank"
             rel="noopener noreferrer"
             className="text-sm text-blue-500 hover:text-blue-700 underline"
