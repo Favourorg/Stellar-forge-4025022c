@@ -366,6 +366,8 @@ npm run build
 
 ⚠️ **Warning**: Mainnet deployment involves real money. Test thoroughly on testnet first!
 
+Before deploying to mainnet, complete the [Mainnet Deployment Checklist](./docs/mainnet-deployment-checklist.md).
+
 The process is identical to testnet, but:
 1. Use `--network mainnet` instead of `--network testnet`
 2. Fund your account with real XLM (buy from an exchange)
@@ -731,7 +733,7 @@ add_header Content-Security-Policy "default-src 'self'; connect-src 'self' https
 
 For users deploying tokens, we strongly recommend:
 - Always test on testnet first before mainnet deployment
-- Review all parameters carefully using the mainnet deployment checklist
+- Review all parameters carefully using the [Mainnet Deployment Checklist](./docs/mainnet-deployment-checklist.md)
 - Verify contract addresses and transaction details before signing
 
 ## Fee Bump Transactions
