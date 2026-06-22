@@ -1,10 +1,19 @@
 name: CI
 
 on:
+  workflow_dispatch:
+    inputs:
+      wasm_size_limit_kb:
+        description: Maximum optimized contract WASM size in KiB
+        required: false
+        default: "64"
   push:
     branches: [main]
   pull_request:
     branches: [main]
+
+env:
+  WASM_SIZE_LIMIT_KB: ${{ github.event.inputs.wasm_size_limit_kb || '64' }}
 
 jobs:
   contract-build:
@@ -15,14 +24,47 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: wasm32-unknown-unknown
+          targets: wasm32v1-none
 
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: contracts
 
-      - name: Build contract
-        run: cargo build --target wasm32-unknown-unknown --release
+      - name: Install WASM optimizer
+        run: sudo apt-get update && sudo apt-get install -y binaryen
+
+      - name: Build optimized contract WASM
+        run: |
+          set -euo pipefail
+          cargo build --target wasm32v1-none --release
+          wasm-opt -Oz target/wasm32v1-none/release/token_factory.wasm \
+            -o target/wasm32v1-none/release/token_factory.optimized.wasm
+          ls -lh target/wasm32v1-none/release/token_factory*.wasm
+        working-directory: contracts
+
+      - name: Check optimized WASM size
+        run: |
+          set -euo pipefail
+
+          if ! [[ "$WASM_SIZE_LIMIT_KB" =~ ^[0-9]+$ ]]; then
+            echo "::error title=Invalid WASM size limit::wasm_size_limit_kb must be a positive integer, got '$WASM_SIZE_LIMIT_KB'."
+            exit 1
+          fi
+
+          wasm_file="target/wasm32v1-none/release/token_factory.optimized.wasm"
+          if [[ ! -f "$wasm_file" ]]; then
+            echo "::error file=$wasm_file,title=Optimized WASM missing::Expected optimized contract WASM was not generated."
+            exit 1
+          fi
+
+          size_bytes=$(wc -c < "$wasm_file" | tr -d ' ')
+          limit_bytes=$((WASM_SIZE_LIMIT_KB * 1024))
+          echo "Optimized token_factory.wasm size: ${size_bytes} bytes; limit: ${limit_bytes} bytes (${WASM_SIZE_LIMIT_KB} KiB)."
+
+          if (( size_bytes > limit_bytes )); then
+            echo "::error file=$wasm_file,title=Contract WASM size limit exceeded::Optimized token_factory.wasm is ${size_bytes} bytes, above the ${limit_bytes} byte (${WASM_SIZE_LIMIT_KB} KiB) limit."
+            exit 1
+          fi
         working-directory: contracts
 
   contract-test:
@@ -131,4 +173,3 @@ jobs:
       - name: Stop Local Stellar Network
         if: always()
         run: docker-compose -f docker-compose.e2e.yml down
-
