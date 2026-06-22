@@ -1,7 +1,7 @@
 // IPFS service for metadata upload via Pinata
 
 import { IPFS_CONFIG } from '../config/ipfs'
-import { withRetry, isTransientError } from '../utils/retry'
+import { withRetry, isTransientError, HttpError } from '../utils/retry'
 import { isValidImageFile } from '../utils/validation'
 import { IPFSConfigError, IPFSUploadError } from './ipfs-errors'
 
@@ -103,7 +103,23 @@ export class IPFSService {
 
   // ── Private helpers ──────────────────────────────────────────────────────────
 
-  private _uploadFile(file: File, onProgress?: (percent: number) => void): Promise<string> {
+  private async _uploadFile(file: File, onProgress?: (percent: number) => void): Promise<string> {
+    try {
+      return await withRetry(() => this._uploadFileOnce(file, onProgress), {
+        shouldRetry: isTransientError,
+      })
+    } catch (error) {
+      if (error instanceof IPFSUploadError) throw error
+      if (error instanceof HttpError) {
+        throw new IPFSUploadError(`Image upload failed (HTTP ${error.status}). Please try again.`)
+      }
+      throw new IPFSUploadError(
+        'Network error during image upload. Check your connection and try again.',
+      )
+    }
+  }
+
+  private _uploadFileOnce(file: File, onProgress?: (percent: number) => void): Promise<string> {
     const formData = new FormData()
     formData.append('file', file)
     formData.append('pinataMetadata', JSON.stringify({ name: file.name }))
@@ -126,6 +142,10 @@ export class IPFSService {
           return
         }
         if (xhr.status !== 200) {
+          if (xhr.status === 429 || xhr.status >= 500) {
+            reject(new HttpError(xhr.status, `Image upload failed (HTTP ${xhr.status}).`))
+            return
+          }
           reject(new IPFSUploadError(`Image upload failed (HTTP ${xhr.status}). Please try again.`))
           return
         }
@@ -142,11 +162,7 @@ export class IPFSService {
       })
 
       xhr.addEventListener('error', () => {
-        reject(
-          new IPFSUploadError(
-            'Network error during image upload. Check your connection and try again.',
-          ),
-        )
+        reject(new TypeError('Network error during image upload.'))
       })
 
       xhr.addEventListener('abort', () => {
