@@ -771,6 +771,7 @@ Key architectural decisions are documented in [`docs/adr/`](./docs/adr/):
 - [ADR-002: Freighter wallet integration](./docs/adr/ADR-002-freighter-wallet.md)
 - [ADR-003: Pinata for IPFS metadata storage](./docs/adr/ADR-003-pinata-ipfs.md)
 - [ADR-004: React + Vite + TypeScript for frontend](./docs/adr/ADR-004-react-vite-typescript.md)
+- [ADR-005: Fee-bump transactions for sponsored network fees](./docs/adr/ADR-005-fee-bump-transactions.md)
 
 ## Contract Upgrade Process
 
