@@ -19,6 +19,12 @@ interface UseTransactionHistoryOptions {
   pageSize?: number;
 }
 
+interface TransactionHistoryCacheEntry {
+  items: TransactionHistoryItem[];
+  nextCursor: string | null;
+  hasMore: boolean;
+}
+
 export function useTransactionHistory(
   publicKey: string | undefined,
   options: UseTransactionHistoryOptions = {}
@@ -28,8 +34,9 @@ export function useTransactionHistory(
   const [error, setError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(1);
-  const cacheRef = useRef<{ [key: string]: TransactionHistoryItem[] }>({});
-  const debounceRef = useRef<number | null>(null);
+  const cacheRef = useRef<{ [key: string]: TransactionHistoryCacheEntry }>({});
+  const nextCursorRef = useRef<string | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const pageSize = options.pageSize || 10;
 
@@ -39,25 +46,36 @@ export function useTransactionHistory(
       setLoading(true);
       setError(null);
       try {
-        const cacheKey = `${publicKey}-${page}`;
+        const cursor = reset ? null : nextCursorRef.current;
+        const cacheKey = `${publicKey}-${pageSize}-${cursor || 'initial'}`;
         if (cacheRef.current[cacheKey]) {
+          const cached = cacheRef.current[cacheKey];
           setTransactions((prev: TransactionHistoryItem[]) =>
-            reset ? cacheRef.current[cacheKey] : [...prev, ...cacheRef.current[cacheKey]]
+            reset ? cached.items : [...prev, ...cached.items]
           );
-          setHasMore(cacheRef.current[cacheKey].length === pageSize);
+          nextCursorRef.current = cached.nextCursor;
+          setHasMore(cached.hasMore);
           setLoading(false);
           return;
         }
-        const url = `https://horizon.stellar.org/accounts/${publicKey}/operations?order=desc&limit=${pageSize}&cursor=`;
-        const resp = await fetch(url);
+        const url = new URL(`https://horizon.stellar.org/accounts/${publicKey}/operations`);
+        url.searchParams.set('order', 'desc');
+        url.searchParams.set('limit', String(pageSize));
+        if (cursor) url.searchParams.set('cursor', cursor);
+        const resp = await fetch(url.toString());
         if (!resp.ok) throw new Error('Failed to fetch transactions');
         const data = await resp.json();
-        const items: TransactionHistoryItem[] = (data._embedded?.records || [])
+        const records: any[] = data._embedded?.records || [];
+        const items: TransactionHistoryItem[] = records
           .map((op: any) => parseOperation(op, options))
           .filter((item: TransactionHistoryItem | null) => item !== null);
-        cacheRef.current[cacheKey] = items;
+        const lastRecord = records.length > 0 ? records[records.length - 1] : null;
+        const nextCursor = lastRecord?.paging_token || null;
+        const hasMoreResults = records.length === pageSize && nextCursor !== null;
+        cacheRef.current[cacheKey] = { items, nextCursor, hasMore: hasMoreResults };
+        nextCursorRef.current = nextCursor;
         setTransactions((prev: TransactionHistoryItem[]) => (reset ? items : [...prev, ...items]));
-        setHasMore(items.length === pageSize);
+        setHasMore(hasMoreResults);
       } catch (e: any) {
         setError(e.message || 'Unknown error');
       } finally {
@@ -72,6 +90,7 @@ export function useTransactionHistory(
     if (!publicKey) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
+      nextCursorRef.current = null;
       setPage(1);
       setTransactions([]);
       fetchTransactions(true);
