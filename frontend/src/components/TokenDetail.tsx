@@ -6,12 +6,7 @@ import { useNetwork } from '../context/NetworkContext'
 import { useToast } from '../context/ToastContext'
 import { useWallet } from '../hooks/useWallet'
 import { ipfsService } from '../services/ipfs'
-import {
-  stellarExplorerUrl,
-  ipfsToGatewayUrl,
-  formatAddress,
-  formatTimestamp,
-} from '../utils/formatting'
+import { ipfsToGatewayUrl, formatAddress, formatTimestamp } from '../utils/formatting'
 import { isValidContractAddress } from '../utils/validation'
 import type { TokenInfo, IPFSMetadata } from '../types'
 import { Card, Button } from './UI'
@@ -59,6 +54,7 @@ export const TokenDetail: React.FC = () => {
 
   useEffect(() => {
     if (!address || !isValidContractAddress(address)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- validating the address param before fetching
       setNotFound(true)
       setLoading(false)
       return

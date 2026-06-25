@@ -20,6 +20,19 @@ interface UseTransactionHistoryOptions {
   pollIntervalMs?: number
 }
 
+/** The subset of Horizon's polymorphic operation record shape this hook reads. */
+interface HorizonOperationRecord {
+  id: string
+  type: string
+  name?: string
+  asset_code?: string
+  asset_issuer?: string
+  amount?: string
+  created_at: string
+  transaction_successful: boolean
+  transaction_hash: string
+}
+
 export function useTransactionHistory(
   publicKey: string | undefined,
   options: UseTransactionHistoryOptions = {},
@@ -59,14 +72,14 @@ export function useTransactionHistory(
         if (!resp.ok) throw new Error('Failed to fetch transactions')
         const data = await resp.json()
         const items: TransactionHistoryItem[] = (data._embedded?.records || [])
-          .map((op: any) => parseOperation(op, options))
+          .map((op: HorizonOperationRecord) => parseOperation(op, options))
           .filter((item: TransactionHistoryItem | null) => item !== null)
         cacheRef.current[cacheKey] = items
         setTransactions((prev: TransactionHistoryItem[]) => (reset ? items : [...prev, ...items]))
         setHasMore(items.length === pageSize)
         setLastUpdated(new Date())
-      } catch (e: any) {
-        setError(e.message || 'Unknown error')
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Unknown error')
       } finally {
         setLoading(false)
       }
@@ -127,7 +140,7 @@ export function useTransactionHistory(
 }
 
 function parseOperation(
-  op: any,
+  op: HorizonOperationRecord,
   options: UseTransactionHistoryOptions,
 ): TransactionHistoryItem | null {
   // Filter by operation type and asset/issuer/contract if provided
@@ -141,7 +154,7 @@ function parseOperation(
   if (op.type === 'manage_data' && op.name && op.name.toLowerCase().includes('token')) {
     type = 'create'
     token = op.name
-  } else if (op.type === 'payment' && op.asset_code) {
+  } else if (op.type === 'payment' && op.asset_code && op.amount) {
     if (Number(op.amount) > 0) {
       type = 'mint'
       token = op.asset_code

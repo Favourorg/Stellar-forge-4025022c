@@ -35,6 +35,7 @@ interface WalletContextValue {
   refreshBalance: () => Promise<void>
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const WalletContext = createContext<WalletContextValue | null>(null)
 
 export function WalletProvider({ children }: { children: ReactNode }) {

@@ -1,5 +1,5 @@
 import { useClipboard } from '../hooks/useClipboard'
-import React, { FC } from 'react'
+import React from 'react'
 
 export interface CopyButtonProps {
   value: string
