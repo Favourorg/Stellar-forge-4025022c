@@ -376,6 +376,78 @@ describe('IPFSService', () => {
       )
     })
 
+    it('retries image upload on transient 503 and succeeds on second attempt', async () => {
+      vi.useFakeTimers()
+      vi.resetModules()
+      const { IPFSService: Fresh } = await import('../services/ipfs')
+      const fresh = new Fresh()
+
+      let xhrCallCount = 0
+      vi.stubGlobal(
+        'XMLHttpRequest',
+        vi.fn().mockImplementation(function (this: XMLHttpRequest) {
+          const listeners: Record<string, EventListener> = {}
+          const uploadListeners: Record<string, EventListener> = {}
+          const xhr = this
+
+          xhrCallCount++
+          xhr.open = vi.fn()
+          xhr.setRequestHeader = vi.fn()
+          xhr.addEventListener = vi.fn((event: string, cb: EventListener) => {
+            listeners[event] = cb
+          })
+          xhr.send = vi.fn().mockImplementation(() => {
+            Promise.resolve().then(() => {
+              if (xhrCallCount === 1) {
+                ;(xhr as unknown as Record<string, unknown>).status = 503
+                ;(xhr as unknown as Record<string, unknown>).responseText = JSON.stringify({})
+                listeners['load']?.({} as Event)
+              } else {
+                ;(xhr as unknown as Record<string, unknown>).status = 200
+                ;(xhr as unknown as Record<string, unknown>).responseText = JSON.stringify({
+                  IpfsHash: 'QmRetryCID',
+                })
+                listeners['load']?.({} as Event)
+              }
+            })
+          })
+
+          Object.defineProperty(xhr, 'upload', {
+            value: {
+              addEventListener: vi.fn((event: string, cb: EventListener) => {
+                uploadListeners[event] = cb
+              }),
+            },
+          })
+
+          return xhr
+        }),
+      )
+
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({
+          ok: true,
+          status: 200,
+          json: async () => ({ IpfsHash: 'QmMetaRetry' }),
+        }),
+      )
+
+      const retryCalls: number[] = []
+      const promise = fresh.uploadMetadata(makeFile(), 'desc', 'Token', undefined, (attempt) =>
+        retryCalls.push(attempt),
+      )
+
+      await vi.runAllTimersAsync()
+      const uri = await promise
+
+      expect(uri).toBe('ipfs://QmMetaRetry')
+      expect(xhrCallCount).toBe(2)
+      expect(retryCalls).toEqual([2])
+
+      vi.useRealTimers()
+    })
+
     it('throws IPFSUploadError when JSON upload response is missing IpfsHash', async () => {
       vi.resetModules()
       const { IPFSService: Fresh } = await import('../services/ipfs')
