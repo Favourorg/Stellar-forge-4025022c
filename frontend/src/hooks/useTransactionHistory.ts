@@ -88,11 +88,21 @@ export function useTransactionHistory(
         if (records.length > 0) {
           cursorRef.current = records[records.length - 1].paging_token ?? '';
         }
-        cacheRef.current[cacheKey] = items;
-        setTransactions((prev: TransactionHistoryItem[]) => (reset ? items : [...prev, ...items]));
-        setHasMore(items.length === pageSize);
-      } catch (e: any) {
-        setError(e.message || 'Unknown error');
+        const url = `https://horizon.stellar.org/accounts/${publicKey}/operations?order=desc&limit=${pageSize}&cursor=`
+        const resp = await fetch(url)
+        if (!resp.ok) throw new Error('Failed to fetch transactions')
+        const data = await resp.json()
+        const items: TransactionHistoryItem[] = (data._embedded?.records || [])
+          .map((op: HorizonOperationRecord) => parseOperation(op, options))
+          .filter((item: TransactionHistoryItem | null) => item !== null)
+        cacheRef.current[cacheKey] = items
+        setTransactions((prev: TransactionHistoryItem[]) =>
+          reset ? items : [...prev, ...items],
+        )
+        setHasMore(items.length === pageSize)
+        setLastUpdated(new Date())
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Unknown error')
       } finally {
         setLoading(false)
       }
@@ -163,7 +173,11 @@ function parseOperation(
   let type: TransactionType = 'other'
   let token = ''
   let amount = ''
-  if (op.type === 'manage_data' && op.name && op.name.toLowerCase().includes('token')) {
+  if (
+    op.type === 'manage_data' &&
+    op.name &&
+    op.name.toLowerCase().includes('token')
+  ) {
     type = 'create'
     token = op.name
   } else if (op.type === 'payment' && op.asset_code && op.amount) {
@@ -181,8 +195,14 @@ function parseOperation(
     token = op.asset_code
   }
   // Optionally filter by assetCodes, issuer, contractIds
-  if (options.assetCodes && token && !options.assetCodes.includes(token)) return null
-  if (options.issuer && op.asset_issuer && op.asset_issuer !== options.issuer) return null
+  if (
+    options.assetCodes &&
+    token &&
+    !options.assetCodes.includes(token)
+  )
+    return null
+  if (options.issuer && op.asset_issuer && op.asset_issuer !== options.issuer)
+    return null
   // Add more contractId logic if needed
   if (type === 'other') return null
   return {
