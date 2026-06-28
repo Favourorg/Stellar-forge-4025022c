@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { STELLAR_CONFIG } from '../config/stellar'
 
 export type TransactionType = 'create' | 'mint' | 'burn' | 'other'
 
@@ -31,6 +32,7 @@ interface HorizonOperationRecord {
   created_at: string
   transaction_successful: boolean
   transaction_hash: string
+  paging_token?: string
 }
 
 export function useTransactionHistory(
@@ -45,6 +47,7 @@ export function useTransactionHistory(
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
   const cacheRef = useRef<{ [key: string]: TransactionHistoryItem[] }>({})
   const debounceRef = useRef<number | null>(null)
+  const cursorRef = useRef<string>('')
   const pollRef = useRef<number | null>(null)
   const isMountedRef = useRef(true)
 
@@ -67,13 +70,20 @@ export function useTransactionHistory(
           setLastUpdated(new Date())
           return
         }
-        const url = `https://horizon.stellar.org/accounts/${publicKey}/operations?order=desc&limit=${pageSize}&cursor=`
+        const network = STELLAR_CONFIG.network as 'testnet' | 'mainnet'
+        const { horizonUrl } = STELLAR_CONFIG[network]
+        const cursor = reset ? '' : cursorRef.current
+        const url = `${horizonUrl}/accounts/${publicKey}/operations?order=desc&limit=${pageSize}&cursor=${cursor}`
         const resp = await fetch(url)
         if (!resp.ok) throw new Error('Failed to fetch transactions')
         const data = await resp.json()
-        const items: TransactionHistoryItem[] = (data._embedded?.records || [])
+        const records: HorizonOperationRecord[] = data._embedded?.records ?? []
+        const items: TransactionHistoryItem[] = records
           .map((op: HorizonOperationRecord) => parseOperation(op, options))
           .filter((item: TransactionHistoryItem | null) => item !== null)
+        if (records.length > 0) {
+          cursorRef.current = records[records.length - 1].paging_token ?? ''
+        }
         cacheRef.current[cacheKey] = items
         setTransactions((prev: TransactionHistoryItem[]) => (reset ? items : [...prev, ...items]))
         setHasMore(items.length === pageSize)
@@ -108,6 +118,7 @@ export function useTransactionHistory(
     if (!publicKey) return
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
+      cursorRef.current = ''
       setPage(1)
       setTransactions([])
       fetchRef.current(true)
