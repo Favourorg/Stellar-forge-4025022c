@@ -303,24 +303,21 @@ function AppContent() {
                   </ProtectedRoute>
                 }
               />
+              {/* Token detail is public so shared deep links work without a wallet (#880). */}
               <Route
                 path="/tokens/:address"
                 element={
-                  <ProtectedRoute>
-                    <RouteBoundary routeName="Token Detail" fallback={<TokenDetailSkeleton />}>
-                      <TokenDetail />
-                    </RouteBoundary>
-                  </ProtectedRoute>
+                  <RouteBoundary routeName="Token Detail" fallback={<TokenDetailSkeleton />}>
+                    <TokenDetail />
+                  </RouteBoundary>
                 }
               />
               <Route
                 path="/token/:address"
                 element={
-                  <ProtectedRoute>
-                    <RouteBoundary routeName="Token Detail" fallback={<TokenDetailSkeleton />}>
-                      <TokenDetail />
-                    </RouteBoundary>
-                  </ProtectedRoute>
+                  <RouteBoundary routeName="Token Detail" fallback={<TokenDetailSkeleton />}>
+                    <TokenDetail />
+                  </RouteBoundary>
                 }
               />
               <Route
